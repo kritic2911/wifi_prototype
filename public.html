@@ -58,6 +58,12 @@
         <h2>Live Demo</h2>
         <div class="demo">
           <div class="demo__controls">
+            <div class="device-stats">
+              <div class="stat">
+                <div class="stat__label">Connected Devices</div>
+                <div id="connectedDevices" class="stat__value">1/3</div>
+              </div>
+            </div>
             <div class="demo__graph">
               <canvas id="usageChart"></canvas>
             </div>
@@ -91,6 +97,13 @@
               <button id="registerBtn" class="btn btn--ghost">Register</button>
               <button id="guestBtn" class="btn btn--ghost">Continue as Guest</button>
               <div class="auth__status">Signed in as: <span id="authUser" class="auth__user">Guest</span></div>
+            <div class="device-manager">
+              <h4>Registered Devices</h4>
+              <div class="device-list" id="deviceList">
+                <!-- Devices will be listed here -->
+              </div>
+              <button id="addDeviceBtn" class="btn btn--ghost">Add Device</button>
+            </div>
             </div>
           </div>
         </div>
@@ -112,7 +125,40 @@
         </div>
       </div>
     </div>
-
+<!-- Add this before the closing body tag -->
+<div id="deviceModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="deviceModalTitle" hidden>
+  <div class="modal__dialog">
+    <div class="modal__header">
+      <h3 id="deviceModalTitle">Add New Device</h3>
+      <button id="deviceModalClose" class="iconbtn" aria-label="Close">✕</button>
+    </div>
+    <div class="modal__body">
+      <form id="deviceForm">
+        <label>
+          Device Name
+          <input type="text" id="deviceName" placeholder="e.g. iPhone 13" required />
+        </label>
+        <label>
+          MAC Address (optional)
+          <input type="text" id="deviceMac" placeholder="XX:XX:XX:XX:XX:XX" />
+        </label>
+        <label>
+          Device Type
+          <select id="deviceType">
+            <option value="phone">Phone</option>
+            <option value="laptop">Laptop</option>
+            <option value="tablet">Tablet</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+      </form>
+    </div>
+    <div class="modal__actions">
+      <button id="saveDeviceBtn" class="btn">Add Device</button>
+      <button id="cancelDeviceBtn" class="btn btn--ghost">Cancel</button>
+    </div>
+  </div>
+</div>
     <footer class="footer">
       <div class="container footer__inner">
         <div class="footer__links">

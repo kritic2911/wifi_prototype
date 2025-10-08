@@ -200,7 +200,7 @@ function startSession() {
   state.maxGuestMbps = cfg.maxMbps || 4;
   updateUI();
   if (timer) clearInterval(timer);
-  const speed = Number(speedSelect?.value || 3600);
+  const speed = Number(speedSelect?.value || 60);
   timer = setInterval(() => {
     state.remainingSeconds -= speed;
     if (!state.notified && state.remainingSeconds <= 15 * 60) {
@@ -610,3 +610,132 @@ if (choosePaid) {
     window.location.href = 'payment.html?from=public-paid';
     });
 }
+
+// Device management demo
+let connectedDevices = 1;
+let maxDevices = 3; // Default for free tier
+let registeredDevices = [];
+
+function updateDeviceCount() {
+  setInterval(() => {
+    // Randomly fluctuate connected devices every 75-95 minutes
+    if (Math.random() > 0.5 && connectedDevices < registeredDevices.length) {
+      connectedDevices++;
+    } else if (connectedDevices > 0) {
+      connectedDevices--;
+    }
+    
+    document.getElementById('connectedDevices').textContent = 
+      `${connectedDevices}/${maxDevices}`;
+  }, Math.random() * (95 - 75) + 75 * 60 * 1000); // Random interval between 75-95 minutes
+}
+
+// Remove this event listener since we're using the modal version below
+/* document.getElementById('addDeviceBtn')?.addEventListener('click', () => {
+  if (registeredDevices.length >= maxDevices) {
+    alert('Maximum device limit reached');
+    return;
+  }
+
+  const deviceName = prompt('Enter device name (e.g. "iPhone 13"):');
+  if (deviceName) {
+    registeredDevices.push({
+      name: deviceName,
+      id: Date.now()
+    });
+    updateDeviceList();
+  }
+}); */
+
+// Update the modal version to be the only handler
+
+const deviceModal = document.getElementById('deviceModal');
+const deviceForm = document.getElementById('deviceForm');
+const deviceModalClose = document.getElementById('deviceModalClose');
+const saveDeviceBtn = document.getElementById('saveDeviceBtn');
+const cancelDeviceBtn = document.getElementById('cancelDeviceBtn');
+const addDeviceBtn = document.getElementById('addDeviceBtn');
+addDeviceBtn?.addEventListener('click', () => {
+  if (registeredDevices.length >= maxDevices) {
+    showToast(`Maximum ${maxDevices} devices allowed for your plan.`);
+    return;
+  }
+  deviceModal.hidden = false;
+});
+
+// Show device modal
+addDeviceBtn?.addEventListener('click', () => {
+  if (registeredDevices.length >= maxDevices) {
+    showToast(`Maximum ${maxDevices} devices allowed for your plan.`);
+    return;
+  }
+  deviceModal.hidden = false;
+});
+
+// Hide device modal
+[deviceModalClose, cancelDeviceBtn].forEach(btn => {
+  btn?.addEventListener('click', () => {
+    deviceModal.hidden = true;
+    deviceForm.reset();
+  });
+});
+
+// Save device
+saveDeviceBtn?.addEventListener('click', () => {
+  const name = document.getElementById('deviceName').value;
+  const mac = document.getElementById('deviceMac').value;
+  const type = document.getElementById('deviceType').value;
+
+  if (!name) return;
+
+  registeredDevices.push({
+    id: Date.now(),
+    name,
+    mac,
+    type,
+    dateAdded: new Date()
+  });
+
+  updateDeviceList();
+  deviceModal.hidden = true;
+  deviceForm.reset();
+});
+
+function updateDeviceList() {
+  const deviceList = document.getElementById('deviceList');
+  if (!deviceList) return;
+
+  deviceList.innerHTML = registeredDevices.map(device => `
+    <div class="device-item">
+      <div class="device-item__info">
+        <div class="device-item__name">${device.name}</div>
+        <div class="device-item__type">${device.type} ${device.mac ? '• ' + device.mac : ''}</div>
+      </div>
+      <button onclick="removeDevice(${device.id})" class="device-item__remove" aria-label="Remove device">✕</button>
+    </div>
+  `).join('');
+}
+
+function removeDevice(id) {
+  registeredDevices = registeredDevices.filter(d => d.id !== id);
+  updateDeviceList();
+}
+
+// Update max devices based on user type
+function updateMaxDevices(userType) {
+  switch(userType) {
+    case 'student':
+    case 'staff':
+      maxDevices = 5;
+      break;
+    case 'paid':
+      maxDevices = 3;
+      break;
+    default:
+      maxDevices = 2;
+  }
+  updateDeviceList();
+}
+
+// Initialize device monitoring
+updateDeviceCount();
