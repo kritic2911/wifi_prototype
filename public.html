@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Public | WiFiSmart Prototype</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="nav">
+      <div class="container nav__inner">
+        <div class="brand">
+          <a href="index.html" class="logo" style="text-decoration:none;color:inherit">WiFi<span>Smart</span></a>
+        </div>
+        <nav class="nav__links">
+          <a href="uni.html">University</a>
+          <a href="admin.html">Admin</a>
+        </nav>
+      </div>
+    </header>
+
+    <section class="section">
+      <div class="container">
+        <div class="hero__cta" style="margin:0 0 12px">
+          <a href="#demo" class="btn">Live Demo</a>
+        </div>
+        <h1>Public Access</h1>
+        <p class="section__lead">Free tier: up to 4h/day, limited bandwidth. Paid tier: 6h/session, higher bandwidth.</p>
+
+        <div class="grid cards">
+          <div class="pricecard">
+            <div class="pricecard__header"><h3>Free Tier</h3><div class="price">₹0</div></div>
+            <ul>
+              <li>4h per day</li>
+              <li>Limited bandwidth</li>
+              <li>Upgrade anytime</li>
+            </ul>
+            <button class="btn btn--block" id="chooseFree">Use Free</button>
+          </div>
+          <div class="pricecard pricecard--pro">
+            <div class="pricecard__header"><h3>Paid Tier</h3><div class="price">₹99</div></div>
+            <ul>
+              <li>6h per session</li>
+              <li>Higher bandwidth</li>
+              <li>Priority access</li>
+            </ul>
+            <button class="btn btn--block" id="choosePaid">Upgrade</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="demo" class="section section--alt">
+      <div class="container">
+        <h2>Live Demo</h2>
+        <div class="demo">
+          <div class="demo__controls">
+            <div class="demo__graph">
+              <canvas id="usageChart"></canvas>
+            </div>
+            <label>
+              Simulation Speed
+              <select id="simSpeed">
+                <option value="1">1×</option>
+                <option value="60">60×</option>
+                <option value="3600" selected>3600×</option>
+              </select>
+            </label>
+            <button id="startSession" class="btn">Start Session</button>
+            <button id="endSession" class="btn btn--ghost">End</button>
+          </div>
+          <div class="demo__panel">
+            <div class="stats">
+              <div class="stat"><div class="stat__label">Allocated</div><div id="statAllocated" class="stat__value">—</div></div>
+              <div class="stat"><div class="stat__label">Remaining</div><div id="statRemaining" class="stat__value">—</div></div>
+              <div class="stat"><div class="stat__label">Bandwidth</div><div id="statBandwidth" class="stat__value">—</div></div>
+            </div>
+            <div class="auth" id="authPanel">
+              <label>
+                Email
+                <input type="email" id="authEmail" placeholder="you@example.com" />
+              </label>
+              <label>
+                Password
+                <input type="password" id="authPassword" placeholder="••••••••" />
+              </label>
+              <button id="loginBtn" class="btn">Login</button>
+              <button id="registerBtn" class="btn btn--ghost">Register</button>
+              <button id="guestBtn" class="btn btn--ghost">Continue as Guest</button>
+              <div class="auth__status">Signed in as: <span id="authUser" class="auth__user">Guest</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalDesc" hidden>
+      <div class="modal__dialog">
+        <div class="modal__header">
+          <h3 id="modalTitle">Session Ending Soon</h3>
+          <button id="modalClose" class="iconbtn" aria-label="Close">✕</button>
+        </div>
+        <div id="modalDesc" class="modal__body">
+          You have <span id="modalRemaining">15 minutes</span> remaining. Would you like to extend your session by 1 hour?
+        </div>
+        <div class="modal__actions">
+          <button id="extendBtn" class="btn">Extend Session</button>
+          <button id="cancelBtn" class="btn btn--ghost">End Now</button>
+        </div>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <div class="container footer__inner">
+        <div class="footer__links">
+          <a href="index.html">Home</a>
+          <a href="uni.html">University</a>
+          <a href="admin.html">Admin</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+  </html>
+
+

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Payment / Upgrade</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="payment-card container" id="root" role="main" aria-labelledby="title">
+    <h1 id="title">Payment / Upgrade</h1>
+    <p class="lead" id="subtitle">Manage upgrades, extensions and register as a paid user.</p>
+
+    <div id="context" class="note muted"></div>
+
+    <div class="plans-row" style="margin-top:12px">
+      <div class="plan-col">
+        <div class="plan-box" aria-labelledby="upgradeLabel">
+          <strong id="upgradeLabel">Upgrade plan</strong>
+          <div class="price">Public Paid — 6 Mbps / 2 extra hours</div>
+          <div class="muted">One-time payment to upgrade from a free tier or to extend non-extendable sessions.</div>
+          <div class="actions">
+            <button id="payUpgrade" class="btn primary">Pay &amp; Upgrade — ₹99</button>
+            <button class="btn ghost" id="backBtn" type="button">Back</button>
+          </div>
+        </div>
+
+        <div id="guestExtend" style="margin-top:12px;display:none" class="plan-box" aria-hidden="true">
+          <strong>Guest extension</strong>
+          <div class="price">Extend session by 1 hour</div>
+          <div class="muted">If you're currently a guest, convert to a paid user or buy a temporary extension.</div>
+          <div class="actions">
+            <button id="payExtend" class="btn primary">Pay to Extend — ₹39</button>
+            <button class="btn ghost" id="convertBtn" type="button">Convert to Paid (register)</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="plan-col">
+        <div class="plan-box" aria-labelledby="registerLabel">
+          <strong id="registerLabel">Register as paid user</strong>
+          <div class="muted">Create a paid account and get access to paid tiers and extensions.</div>
+
+          <form id="registerForm" novalidate>
+            <label for="email">Email</label>
+            <input id="email" type="email" placeholder="you@example.com" required>
+
+            <label for="password" style="margin-top:8px">Password</label>
+            <input id="password" type="password" placeholder="min 6 chars" required>
+
+            <div class="actions">
+              <button class="btn primary" id="payRegister" type="button">Register &amp; Pay — ₹99</button>
+              <button class="btn ghost" id="clearBtn" type="button">Clear</button>
+            </div>
+          </form>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="msg" id="message" role="status" aria-live="polite"></div>
+  </main>
+  <script src="script.js"></script>
+  
+</body>
+</html>

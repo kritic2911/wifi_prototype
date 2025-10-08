@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin | WiFiSmart Prototype</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="nav">
+      <div class="container nav__inner">
+        <div class="brand">
+          <a href="index.html" class="logo" style="text-decoration:none;color:inherit">WiFi<span>Smart</span></a>
+        </div>
+        <nav class="nav__links">
+          <a href="uni.html">University</a>
+          <a href="public.html">Public</a>
+        </nav>
+      </div>
+    </header>
+
+    <section class="section">
+      <div class="container">
+        <h1>Admin Panel</h1>
+        <p class="section__lead">Control bandwidth and session hours per user or per tier.</p>
+
+        <div class="admin" id="adminPanel">
+          <div class="admin__controls">
+            <label>
+              User/Tier
+              <select id="adminTarget">
+                <option>All Free Users</option>
+                <option>All Paid Users</option>
+                <option>Guest Users</option>
+                <option>University Users</option>
+              </select>
+            </label>
+            <label>
+              Session Length (hours)
+              <input type="number" id="adminHours" min="1" max="12" value="4" />
+            </label>
+            <label>
+              Bandwidth (Mbps)
+              <input type="number" id="adminBandwidth" min="1" max="1000" value="2" />
+            </label>
+            <button id="applyPolicy" class="btn">Apply Policy</button>
+            <div id="adminToast" class="toast" role="status" aria-live="polite"></div>
+          </div>
+          <div class="admin__preview">
+            <div class="card">
+              <div class="card__title">Effective Policy</div>
+              <div class="card__row"><span>Target</span><span id="previewTarget">All Free Users</span></div>
+              <div class="card__row"><span>Hours</span><span id="previewHours">4</span></div>
+              <div class="card__row"><span>Bandwidth</span><span id="previewBandwidth">2 Mbps</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--alt">
+      <div class="container">
+        <h2>High Usage Monitor</h2>
+        <p class="section__lead">Users exceeding configured bandwidth caps</p>
+        <div class="card">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Tier</th>
+                <th>Cap</th>
+                <th>Peak</th>
+                <th>Breaches (24h)</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>small@things.com</td>
+                <td>University</td>
+                <td>4 Mbps</td>
+                <td>6.2 Mbps</td>
+                <td>5</td>
+                <td><span class="tag tag--warn">Review</span></td>
+              </tr>
+              <tr>
+                <td>alister@crowley.com</td>
+                <td>Guest</td>
+                <td>1.5 Mbps</td>
+                <td>3.1 Mbps</td>
+                <td>11</td>
+                <td><span class="tag tag--danger">High Risk</span></td>
+              </tr>
+              <tr>
+                <td>tedhughes@ovenHeaven.com</td>
+                <td>Public Paid</td>
+                <td>4 Mbps</td>
+                <td>4.9 Mbps</td>
+                <td>3</td>
+                <td><span class="tag">Caution</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    
+
+    <footer class="footer">
+      <div class="container footer__inner">
+        <div class="footer__links">
+          <a href="index.html">Home</a>
+          <a href="uni.html">University</a>
+          <a href="public.html">Public</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+  </html>
+
+
