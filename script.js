@@ -760,12 +760,47 @@ updateDeviceCount();
   const el = {
     apsTable: document.querySelector('#apsTable tbody'),
     devicesTable: document.querySelector('#devicesTable tbody'),
-    tickBtn: document.getElementById('tickBtn'),
-    runEngine: document.getElementById('runEngine'),
     resetSim: document.getElementById('resetSim'),
     actionLog: document.getElementById('actionLog'),
     simToast: document.getElementById('simToast'),
   };
+
+  // element for high usage monitor
+  const highUsageBody = document.getElementById('highUsageBody');
+
+  // buffered logging: collect entries and flush to DOM on interval (1 min)
+  const logBuffer = [];
+  function log(msg) {
+    const time = new Date().toLocaleTimeString();
+    const entry = `[${time}] ${msg}`;
+    // push newest first (we will insert in DOM newest-first)
+    logBuffer.unshift(entry);
+    // also console for debugging
+    console.log(`[Simulator] ${msg}`);
+  }
+
+  function flushLogs(limit = 100) {
+    if (!el.actionLog) return;
+    // insert buffered entries into DOM newest-first
+    while (logBuffer.length) {
+      const entry = logBuffer.shift();
+      el.actionLog.insertAdjacentHTML('afterbegin', `<div>${entry}</div>`);
+    }
+    // trim to keep only latest `limit` entries
+    const children = Array.from(el.actionLog.children);
+    if (children.length > limit) {
+      for (let i = limit; i < children.length; i++) {
+        children[i].remove();
+      }
+    }
+  }
+
+  // initial styling for action log
+  if (el.actionLog) {
+    el.actionLog.style.fontFamily = "'Courier New', monospace";
+    el.actionLog.style.color = '#000';
+    el.actionLog.style.whiteSpace = 'pre-wrap';
+  }
 
   function renderAPs() {
     if (!el.apsTable) return;
@@ -788,34 +823,68 @@ updateDeviceCount();
     });
   }
 
-  function log(msg) {
-    const time = new Date().toLocaleTimeString();
-    if (el.actionLog) el.actionLog.insertAdjacentHTML('afterbegin', `<div>[${time}] ${msg}</div>`);
-    // also output to console for debug
-    console.log(`[Simulator] ${msg}`);
+  // High-usage monitor randomizer (updates table every 2 minutes)
+  const highUsageDefaults = [
+    { user: 'small@things.com', tier: 'University', cap: 4, peak: 6.2, devices: '4/5', breaches: 5, status: 'Review', tag: 'tag--warn' },
+    { user: 'alister@crowley.com', tier: 'Guest', cap: 1.5, peak: 3.1, devices: '2/3', breaches: 11, status: 'High Risk', tag: 'tag--danger' },
+    { user: 'tedhughes@ovenHeaven.com', tier: 'Public Paid', cap: 4, peak: 4.9, devices: '3/3', breaches: 3, status: 'Caution', tag: '' },
+  ];
+  const firstNames = ['alex','sam','morgan','casey','jamie','taylor','riley','jordan','blake','kai'];
+  const lastNames = ['wright','lee','patel','singh','garcia','nguyen','brown','johnson','khan','martin'];
+  const tier = ['guest', 'paid', 'faculty', 'student']
+  function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+  function randomUser(base) {   // sometimes keep base name, otherwise generate new
+  if (Math.random() < 0.35) return base;
+    const fn = firstNames[randInt(0, firstNames.length - 1)];
+    const ln = lastNames[randInt(0, lastNames.length - 1)];
+    const num = Math.random() < 0.35 ? '' : String(randInt(1, 99));
+    const domain = ['example.com','campus.edu','guest.net'][randInt(0,2)];
+    return `${fn}${num}.${ln}@${domain}`;
+}
+  function randomizeHighUsage() {
+    if (!highUsageBody) return;
+    // mutate defaults slightly to feel live
+    const rows = highUsageDefaults.map(u => {
+      const displayUser = randomUser(u.user);
+      const peakJitter = (Math.random() * 1.4 - 0.7);
+      const peak = Math.max(u.cap + 0.1, +(u.peak + peakJitter).toFixed(1));
+      const devicesNum = Math.max(1, Math.min(6, parseInt(u.devices.split('/')[0], 10) + Math.floor((Math.random() - 0.4) * 2)));
+      const devicesDen = parseInt(u.devices.split('/')[1], 10);
+      const breaches = Math.max(0, u.breaches + Math.floor((Math.random() - 0.5) * 3));
+      const statuses = ['Review', 'High Risk', 'Caution', 'OK'];
+      const status = Math.random() < 0.06 ? statuses[Math.floor(Math.random() * statuses.length)] : u.status;
+      const tagClass = status === 'High Risk' ? 'tag--danger' : (status === 'Review' ? 'tag--warn' : '');
+      return `<tr>
+        <td>${displayUser}</td>
+        <td>${u.tier}</td>
+        <td>${u.cap} Mbps</td>
+        <td>${peak} Mbps</td>
+        <td>${devicesNum}/${devicesDen}</td>
+        <td>${breaches}</td>
+        <td><span class="tag ${tagClass}">${status}</span></td>
+      </tr>`;
+    });
+    highUsageBody.innerHTML = rows.join('\n');
+    log('High Usage Monitor refreshed');
   }
 
   // Behavior-based classifier (privacy-safe: uses jitter, pattern, packet variance)
   function classifyFlow(device) {
-    // If jitter > 30 ms and flow stable -> classify as video_call -> increase priority
     if (device.jitter > 30 && device.pattern === 'stable') {
       device.classification = 'video_call';
       device.priority = 'high';
       return 'video_call';
     }
-    // If user doing large download -> treat as normal priority
     if (device.pattern === 'large_download') {
       device.classification = 'large_download';
       device.priority = 'normal';
       return 'large_download';
     }
-    // Stable streaming (low jitter, stable) -> medium
     if (device.pattern === 'stable' && device.jitter <= 30) {
       device.classification = 'streaming';
       device.priority = 'medium';
       return 'streaming';
     }
-    // Burst/variable -> best-effort
     device.classification = 'best_effort';
     device.priority = 'normal';
     return 'best_effort';
@@ -888,7 +957,7 @@ updateDeviceCount();
     });
   }
 
-  // One tick: randomize some metrics and re-render
+  // One tick: randomize some metrics and re-render (this runs frequently to make the page appear live)
   function tick() {
     aps.forEach(a => {
       const delta = Math.floor((Math.random() - 0.4) * 10);
@@ -903,94 +972,11 @@ updateDeviceCount();
     log('Tick: metrics randomized');
   }
 
-  // Run full smart engine: classify flows then apply AP rules
-  function runSmartEngine() {
-    if (el.actionLog) el.actionLog.insertAdjacentHTML('afterbegin', `<div style="font-weight:bold">=== Smart Engine Run ===</div>`);
-    devices.forEach(d => {
-      const cls = classifyFlow(d);
-      log(`Classified ${d.user} as ${cls} (jitter=${d.jitter}, pattern=${d.pattern})`);
-    });
-    detectCongestion();
-    autoPrioritize();
-    autoLoadBalance();
-    bandSteering();
-    renderAPs();
-    renderDevices();
-    if (el.simToast) {
-      el.simToast.textContent = 'Smart Engine completed';
-      setTimeout(() => { el.simToast.textContent = ''; }, 2200);
-    }
-  }
-
-  document.addEventListener('DOMContentLoaded', () => {
-    renderAPs();
-    renderDevices();
-    log('Simulator ready');
-  });
-
-  el.tickBtn?.addEventListener('click', tick);
-  el.runEngine?.addEventListener('click', runSmartEngine);
-  el.resetSim?.addEventListener('click', () => {
-    // reset to initial values
-    aps[0].load = 45; aps[1].load = 20; aps[2].load = 85;
-    devices.forEach((d, i) => {
-      const base = [
-        {jitter:12,pattern:'stable',ap:'AP-1',supports5g:true,priorityUser:false},
-        {jitter:42,pattern:'stable',ap:'AP-3',supports5g:true,priorityUser:true},
-        {jitter:18,pattern:'large_download',ap:'AP-3',supports5g:false,priorityUser:false},
-        {jitter:8,pattern:'burst',ap:'AP-2',supports5g:true,priorityUser:false},
-      ][i];
-      Object.assign(d, base, {classification:undefined,priority:'normal'});
-    });
-    renderAPs();
-    renderDevices();
-    if (el.actionLog) el.actionLog.innerHTML = '';
-    if (el.simToast) {
-      el.simToast.textContent = 'Simulator reset';
-      setTimeout(() => { el.simToast.textContent = ''; }, 2000);
-    }
-  });
-
-  // === Live action log styling + periodic updates (every 10s) ===
-  // Make the action log use Courier New and darker text, and simulate live device churn.
-  if (el.actionLog) {
-    el.actionLog.style.fontFamily = "'Courier New', monospace";
-    el.actionLog.style.color = '#000'; // darker black
-    el.actionLog.style.whiteSpace = 'pre-wrap';
-  }
-
-  const stopEngineBtn = document.getElementById('stopEngine');
-
-  function rndId() {
-    return `dev${Math.floor(Math.random() * 9000 + 1000)}`;
-  }
-
-  // Manage live update interval so it can be stopped/restarted
-  let liveInterval = null;
-  function startLiveUpdates() {
-    if (liveInterval) return;
-    liveInterval = setInterval(liveUpdate, 10000);
-    log('Live log updates enabled (interval: 10s)');
-  }
-  function stopLiveUpdates() {
-    if (!liveInterval) return;
-    clearInterval(liveInterval);
-    liveInterval = null;
-    log('Live updates stopped');
-    if (el.simToast) {
-      el.simToast.textContent = 'Live engine stopped';
-      setTimeout(() => { el.simToast.textContent = ''; }, 1600);
-    }
-  }
-  
-  stopEngineBtn?.addEventListener('click', () => {
-    stopLiveUpdates();
-  });
-
+  // Live update loop: device churn + AP load recalculation (runs every 10s)
   function liveUpdate() {
-    // Occasionally add a new device (30%) if under a soft cap
-    if (Math.random() < 0.30 && devices.length < 12) {
-      const id = rndId();
+    // device join/leave and mutations (same as before)
+    if (Math.random() < 0.30 && devices.length < 24) {
+      const id = `dev${Math.floor(Math.random() * 9000 + 1000)}`;
       const chosenAP = aps[Math.floor(Math.random() * aps.length)].id;
       const newDev = {
         user: `guest${id}@net`,
@@ -1006,9 +992,7 @@ updateDeviceCount();
       log(`Device joined: ${newDev.user} → ${newDev.ap}`);
     }
 
-    // Occasionally remove a random non-priority device (20%)
     if (Math.random() < 0.20 && devices.length > 3) {
-      // prefer removing non-priority users
       const candidates = devices.map((d, i) => ({ d, i })).filter(x => !x.d.priorityUser);
       if (candidates.length) {
         const pick = candidates[Math.floor(Math.random() * candidates.length)];
@@ -1017,22 +1001,14 @@ updateDeviceCount();
       }
     }
 
-    // Randomly mutate existing devices to look active
     devices.forEach(d => {
-      // capture previous values to log meaningful changes
       const prevJ = d.jitter;
       const prevP = d.pattern;
-      if (Math.random() < 0.45) {
-        d.jitter = Math.max(1, d.jitter + Math.floor((Math.random() - 0.5) * 12));
-      }
-      if (Math.random() < 0.18) {
-        d.pattern = Math.random() < 0.6 ? 'stable' : (Math.random() < 0.5 ? 'burst' : 'large_download');
-      }
-      // log notable changes
+      if (Math.random() < 0.45) d.jitter = Math.max(1, d.jitter + Math.floor((Math.random() - 0.5) * 12));
+      if (Math.random() < 0.18) d.pattern = Math.random() < 0.6 ? 'stable' : (Math.random() < 0.5 ? 'burst' : 'large_download');
       const jDelta = Math.abs(d.jitter - prevJ);
       if (jDelta >= 8) log(`Metric: ${d.user} jitter ${prevJ} -> ${d.jitter} ms`);
       if (prevP !== d.pattern) log(`Metric: ${d.user} pattern ${prevP} -> ${d.pattern}`);
-      // occasionally move device between APs to simulate roaming
       if (Math.random() < 0.07) {
         const candidateAP = aps[Math.floor(Math.random() * aps.length)].id;
         if (candidateAP !== d.ap) {
@@ -1042,45 +1018,136 @@ updateDeviceCount();
       }
     });
 
-    // Recalculate AP loads from device counts + noise to feel realistic
     aps.forEach(ap => {
       const count = devices.filter(d => d.ap === ap.id).length;
-      const baseLoad = Math.min(90, Math.round(count * 9 + (Math.random() * 8 - 4)));
-      // keep congested flags accurate
-      ap.load = Math.max(5, Math.min(99, baseLoad));
+      const baseLoad = Math.min(95, Math.round(count * 8 + (Math.random() * 10 - 5)));
+      ap.load = Math.max(3, Math.min(99, baseLoad));
     });
 
     renderAPs();
     renderDevices();
 
-    // Summary log entry of AP loads
     const summary = aps.map(a => `${a.id}:${a.load}%`).join(' | ');
     log(`Periodic status — AP loads: ${summary}`);
-
-    // Trim log to keep UI responsive (keep latest ~80 entries)
-    if (el.actionLog) {
-      const children = el.actionLog.children;
-      while (children.length > 80) {
-        // since we insert entries at the top (afterbegin), remove last child (oldest)
-        el.actionLog.removeChild(el.actionLog.lastChild);
-      }
-    }
   }
 
-  // start periodic live updates (every 10 seconds)
+  // periodic timers:
+  // - liveUpdate every 10s (keeps page changing)
+  // - flushLogs every 60s (updates access log DOM)
+  // - randomizeHighUsage every 120s (updates high usage monitor)
+  let liveInterval = null;
+  function startLiveUpdates() {
+    if (liveInterval) return;
+    liveInterval = setInterval(liveUpdate, 10_000);
+    log('Live updates started (10s interval)');
+  }
+  function stopLiveUpdates() {
+    if (!liveInterval) return;
+    clearInterval(liveInterval);
+    liveInterval = null;
+    log('Live updates stopped');
+  }
+
+  const flushInterval = setInterval(() => flushLogs(200), 60_000); // 1 minute
+  const highUsageInterval = setInterval(randomizeHighUsage, 120_000); // 2 minutes
+
+  // expose ability to call immediately on load
+  randomizeHighUsage();
+  flushLogs();
   startLiveUpdates();
 
-   document.addEventListener('visibilitychange', () => {
-     // pause updates when tab not visible to reduce CPU
+  // Reset button clears simulation and logs
+  el.resetSim?.addEventListener('click', () => {
+    aps[0].load = 45; aps[1].load = 20; aps[2].load = 85;
+    devices.splice(0, devices.length, 
+      { user: 'alice@uni.com', ap: 'AP-1', supports5g: true, jitter: 12, pattern: 'stable', packetVar: 10, priorityUser: false, priority: 'normal' },
+      { user: 'bob@corp.com', ap: 'AP-3', supports5g: true, jitter: 42, pattern: 'stable', packetVar: 8, priorityUser: true, priority: 'normal' },
+      { user: 'carol@guest.com', ap: 'AP-3', supports5g: false, jitter: 18, pattern: 'large_download', packetVar: 30, priorityUser: false, priority: 'normal' },
+      { user: 'dave@public.com', ap: 'AP-2', supports5g: true, jitter: 8, pattern: 'burst', packetVar: 50, priorityUser: false, priority: 'normal' }
+    );
+    renderAPs();
+    renderDevices();
+    // clear DOM logs and buffer
+    if (el.actionLog) el.actionLog.innerHTML = '';
+    logBuffer.length = 0;
+    randomizeHighUsage();
+    flushLogs();
+    if (el.simToast) {
+      el.simToast.textContent = 'Simulator reset';
+      setTimeout(() => { el.simToast.textContent = ''; }, 1600);
+    }
+  });
+
+  // Generate report (include buffered log entries too)
+  const generateReportBtn = document.getElementById('generateReport');
+  generateReportBtn?.addEventListener('click', () => {
+    // Build users-exceeding table: treat devices with pattern 'large_download' OR jitter>50 OR AP load>80 as exceeding
+    const exceeding = devices.filter(d => {
+      const ap = aps.find(a => a.id === d.ap);
+      return d.pattern === 'large_download' || d.jitter > 50 || (ap && ap.load > 80);
+    });
+
+    const lines = [];
+    lines.push('=== Users exceeding bandwidth (simulated) ===');
+    lines.push('user,ap,supports5g,jitter_ms,pattern,priorityUser');
+    if (exceeding.length === 0) {
+      lines.push('none');
+    } else {
+      exceeding.forEach(u => {
+        lines.push([
+          `"${u.user}"`,
+          u.ap,
+          u.supports5g ? 'yes' : 'no',
+          u.jitter,
+          u.pattern,
+          u.priorityUser ? 'yes' : 'no'
+        ].join(','));
+      });
+    }
+
+    lines.push('');
+    lines.push('=== Top 100 Access Log (newest first) ===');
+    lines.push('timestamp | message');
+
+    // collect DOM entries first (newest to oldest)
+    const domEntries = el.actionLog ? Array.from(el.actionLog.children).slice(0, 100).map(n => n.textContent?.trim().replace(/\s+/g, ' ') || '') : [];
+    // include any buffered (not yet flushed) entries after DOM ones
+    const buffered = logBuffer.slice(0, 100 - domEntries.length);
+    const allEntries = domEntries.concat(buffered);
+    if (allEntries.length === 0) {
+      lines.push('no log entries');
+    } else {
+      allEntries.slice(0, 100).forEach(text => lines.push(`"${text.replace(/"/g, '""')}"`));
+    }
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    a.download = `wifi-admin-report-${ts}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+
+    log(`Report generated (${exceeding.length} users flagged)`);
+    if (el.simToast) {
+      el.simToast.textContent = 'Report generated and downloaded';
+      setTimeout(() => { el.simToast.textContent = ''; }, 2200);
+    }
+  });
+
+  // pause/resume updates when page visibility changes (keeps CPU low)
+  document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       stopLiveUpdates();
     } else {
       startLiveUpdates();
       log('Live updates resumed');
     }
-   });
+  });
 
-   // initial small burst so page feels "live" on load
-   setTimeout(liveUpdate, 1200);
+})(); 
 
- })();
+//# sourceMappingURL=app.js.map
