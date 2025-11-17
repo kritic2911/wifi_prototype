@@ -112,7 +112,62 @@
       </div>
     </section>
 
+    <section class="section">
+      <div class="container">
+        <h2>Traffic Management</h2>
+        <p class="section__lead">Privacy-safe traffic classification and AP management rules (uses flow metadata
+          only).</p>
     
+        <div class="card" id="simulator">
+          <!-- Access Points (full width, above devices) -->
+          <div style="margin-bottom:1rem">
+            <h3>Access Points</h3>
+            <table class="table" id="apsTable">
+              <thead>
+                <tr>
+                  <th>AP</th>
+                  <th>Band</th>
+                  <th>Load</th>
+                  <th>State</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+    
+          <!-- Devices / Flows (full width, below APs) -->
+          <div style="margin-top:0.5rem">
+            <h3>Devices / Flows</h3>
+            <table class="table" id="devicesTable">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>AP</th>
+                  <th>5GHz?</th>
+                  <th>Jitter(ms)</th>
+                  <th>Pattern</th>
+                  <th>Class</th>
+                  <th>Priority</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+    
+          <!-- Controls -->
+          <div style="margin-top:1rem;display:flex;gap:.5rem;align-items:center">
+            <button id="tickBtn" class="btn">Simulate Tick</button>
+            <button id="runEngine" class="btn">Run Smart Engine</button>
+            <button id="resetSim" class="btn">Reset</button>
+            <div id="simToast" class="toast" role="status" aria-live="polite" style="margin-left:1rem"></div>
+          </div>
+    
+          <!-- Action Log (below devices) -->
+          <h4 style="margin-top:1rem">Action Log</h4>
+          <div id="actionLog" style="height:160px;overflow:auto;background:#fff;padding:8px;border-radius:6px;border:1px solid #eee;color:#111"></div>
+         </div>
+       </div>
+     </section>
 
     <footer class="footer">
       <div class="container footer__inner">

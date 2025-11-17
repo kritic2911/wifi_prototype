@@ -739,3 +739,215 @@ function updateMaxDevices(userType) {
 
 // Initialize device monitoring
 updateDeviceCount();
+
+(function () {
+  // only initialize if admin simulator UI exists
+  if (!document.getElementById('simulator')) return;
+
+  const aps = [
+    { id: 'AP-1', band: '2.4GHz', load: 45, neighbours: ['AP-2'] },
+    { id: 'AP-2', band: '5GHz', load: 20, neighbours: ['AP-1', 'AP-3'] },
+    { id: 'AP-3', band: '2.4GHz', load: 85, neighbours: ['AP-2'] },
+  ];
+
+  const devices = [
+    { user: 'alice@uni.com', ap: 'AP-1', supports5g: true, jitter: 12, pattern: 'stable', packetVar: 10, priorityUser: false, priority: 'normal' },
+    { user: 'bob@corp.com', ap: 'AP-3', supports5g: true, jitter: 42, pattern: 'stable', packetVar: 8, priorityUser: true, priority: 'normal' },
+    { user: 'carol@guest.com', ap: 'AP-3', supports5g: false, jitter: 18, pattern: 'large_download', packetVar: 30, priorityUser: false, priority: 'normal' },
+    { user: 'dave@public.com', ap: 'AP-2', supports5g: true, jitter: 8, pattern: 'burst', packetVar: 50, priorityUser: false, priority: 'normal' },
+  ];
+
+  const el = {
+    apsTable: document.querySelector('#apsTable tbody'),
+    devicesTable: document.querySelector('#devicesTable tbody'),
+    tickBtn: document.getElementById('tickBtn'),
+    runEngine: document.getElementById('runEngine'),
+    resetSim: document.getElementById('resetSim'),
+    actionLog: document.getElementById('actionLog'),
+    simToast: document.getElementById('simToast'),
+  };
+
+  function renderAPs() {
+    if (!el.apsTable) return;
+    el.apsTable.innerHTML = '';
+    aps.forEach(a => {
+      const row = document.createElement('tr');
+      const state = a.load > 80 ? 'Congested' : a.load > 60 ? 'High' : 'Normal';
+      row.innerHTML = `<td>${a.id}</td><td>${a.band}</td><td>${a.load}%</td><td>${state}</td>`;
+      el.apsTable.appendChild(row);
+    });
+  }
+
+  function renderDevices() {
+    if (!el.devicesTable) return;
+    el.devicesTable.innerHTML = '';
+    devices.forEach(d => {
+      const row = document.createElement('tr');
+      row.innerHTML = `<td>${d.user}</td><td>${d.ap}</td><td>${d.supports5g ? 'Yes' : 'No'}</td><td>${d.jitter}</td><td>${d.pattern}</td><td>${d.classification || '-'}</td><td>${d.priority}</td>`;
+      el.devicesTable.appendChild(row);
+    });
+  }
+
+  function log(msg) {
+    const time = new Date().toLocaleTimeString();
+    if (el.actionLog) el.actionLog.insertAdjacentHTML('afterbegin', `<div>[${time}] ${msg}</div>`);
+    // also output to console for debug
+    console.log(`[Simulator] ${msg}`);
+  }
+
+  // Behavior-based classifier (privacy-safe: uses jitter, pattern, packet variance)
+  function classifyFlow(device) {
+    // If jitter > 30 ms and flow stable -> classify as video_call -> increase priority
+    if (device.jitter > 30 && device.pattern === 'stable') {
+      device.classification = 'video_call';
+      device.priority = 'high';
+      return 'video_call';
+    }
+    // If user doing large download -> treat as normal priority
+    if (device.pattern === 'large_download') {
+      device.classification = 'large_download';
+      device.priority = 'normal';
+      return 'large_download';
+    }
+    // Stable streaming (low jitter, stable) -> medium
+    if (device.pattern === 'stable' && device.jitter <= 30) {
+      device.classification = 'streaming';
+      device.priority = 'medium';
+      return 'streaming';
+    }
+    // Burst/variable -> best-effort
+    device.classification = 'best_effort';
+    device.priority = 'normal';
+    return 'best_effort';
+  }
+
+  // Detect congested APs
+  function detectCongestion() {
+    aps.forEach(a => {
+      a.congested = a.load > 80;
+      if (a.congested) log(`${a.id} marked congested (load ${a.load}%)`);
+    });
+  }
+
+  // Auto-prioritize important users when AP congested
+  function autoPrioritize() {
+    aps.forEach(ap => {
+      if (!ap.congested) return;
+      // find priority users on this AP
+      const priorityUsers = devices.filter(d => d.ap === ap.id && d.priorityUser);
+      if (priorityUsers.length) {
+        priorityUsers.forEach(pu => {
+          pu.priority = 'boosted';
+          log(`Boosted priority for ${pu.user} on ${ap.id}`);
+        });
+        // throttle low-priority users on same AP
+        devices.filter(d => d.ap === ap.id && !d.priorityUser).forEach(d => {
+          d.priority = d.priority === 'high' ? 'normal' : 'throttled';
+          log(`Throttled ${d.user} on ${ap.id} to relieve congestion`);
+        });
+      }
+    });
+  }
+
+  // Auto-load balancing suggestions
+  function autoLoadBalance() {
+    aps.forEach(ap => {
+      if (ap.load <= 80) return;
+      ap.neighbours.forEach(nid => {
+        const neighbour = aps.find(x => x.id === nid);
+        if (!neighbour) return;
+        if (neighbour.load < 50) {
+          // suggest move for devices on congested AP to neighbour (prefer 5GHz if supported)
+          devices.filter(d => d.ap === ap.id).forEach(d => {
+            if (d.supports5g && neighbour.band.includes('5GHz')) {
+              log(`Suggest ${d.user} move from ${ap.id} to ${neighbour.id} (5GHz)`);
+            } else {
+              log(`Suggest ${d.user} connect to closer AP ${neighbour.id}`);
+            }
+          });
+        }
+      });
+    });
+  }
+
+  // Band-steering: move device to 5GHz if supported and 2.4GHz congested
+  function bandSteering() {
+    const congested24 = aps.filter(a => a.band.includes('2.4') && a.load > 80);
+    const available5 = aps.filter(a => a.band.includes('5GHz') && a.load < 70);
+    congested24.forEach(a24 => {
+      devices.filter(d => d.ap === a24.id && d.supports5g).forEach(d => {
+        if (available5.length) {
+          const target = available5[0];
+          log(`Band-steering: propose ${d.user} from ${a24.id} -> ${target.id}`);
+          // simulate steering by updating device ap and adjusting loads
+          d.ap = target.id;
+          a24.load = Math.max(0, a24.load - 10);
+          target.load = Math.min(100, target.load + 10);
+        }
+      });
+    });
+  }
+
+  // One tick: randomize some metrics and re-render
+  function tick() {
+    aps.forEach(a => {
+      const delta = Math.floor((Math.random() - 0.4) * 10);
+      a.load = Math.max(0, Math.min(100, a.load + delta));
+    });
+    devices.forEach(d => {
+      d.jitter = Math.max(1, d.jitter + Math.floor((Math.random() - 0.5) * 8));
+      if (Math.random() < 0.08) d.pattern = d.pattern === 'large_download' ? 'stable' : 'large_download';
+    });
+    renderAPs();
+    renderDevices();
+    log('Tick: metrics randomized');
+  }
+
+  // Run full smart engine: classify flows then apply AP rules
+  function runSmartEngine() {
+    if (el.actionLog) el.actionLog.insertAdjacentHTML('afterbegin', `<div style="font-weight:bold">=== Smart Engine Run ===</div>`);
+    devices.forEach(d => {
+      const cls = classifyFlow(d);
+      log(`Classified ${d.user} as ${cls} (jitter=${d.jitter}, pattern=${d.pattern})`);
+    });
+    detectCongestion();
+    autoPrioritize();
+    autoLoadBalance();
+    bandSteering();
+    renderAPs();
+    renderDevices();
+    if (el.simToast) {
+      el.simToast.textContent = 'Smart Engine completed';
+      setTimeout(() => { el.simToast.textContent = ''; }, 2200);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    renderAPs();
+    renderDevices();
+    log('Simulator ready');
+  });
+
+  el.tickBtn?.addEventListener('click', tick);
+  el.runEngine?.addEventListener('click', runSmartEngine);
+  el.resetSim?.addEventListener('click', () => {
+    // reset to initial values
+    aps[0].load = 45; aps[1].load = 20; aps[2].load = 85;
+    devices.forEach((d, i) => {
+      const base = [
+        {jitter:12,pattern:'stable',ap:'AP-1',supports5g:true,priorityUser:false},
+        {jitter:42,pattern:'stable',ap:'AP-3',supports5g:true,priorityUser:true},
+        {jitter:18,pattern:'large_download',ap:'AP-3',supports5g:false,priorityUser:false},
+        {jitter:8,pattern:'burst',ap:'AP-2',supports5g:true,priorityUser:false},
+      ][i];
+      Object.assign(d, base, {classification:undefined,priority:'normal'});
+    });
+    renderAPs();
+    renderDevices();
+    if (el.actionLog) el.actionLog.innerHTML = '';
+    if (el.simToast) {
+      el.simToast.textContent = 'Simulator reset';
+      setTimeout(() => { el.simToast.textContent = ''; }, 2000);
+    }
+  });
+})();
