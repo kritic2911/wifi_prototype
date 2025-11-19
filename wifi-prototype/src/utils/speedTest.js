@@ -1,5 +1,5 @@
-const SPEED_TEST_API = "../../api/speed-test";
-const TEST_PAYLOAD_SIZE = 2 * 1024 * 1024;
+const SPEED_TEST_API = "/api/speed-test";
+const TEST_PAYLOAD_SIZE = 20 * 1024 * 1024;
 
 class SpeedTestManager {
   constructor() {
@@ -23,7 +23,7 @@ class SpeedTestManager {
       const durationSeconds = (endTime - startTime) / 1000
       const bitsDownloaded = TEST_PAYLOAD_SIZE * 8
       const speedBps = bitsDownloaded / durationSeconds
-      const speedMbps = speedBps / (1024 * 1024 * 64)
+      const speedMbps = speedBps / (1024 * 1024 * 2)
 
       return Math.max(0.1, speedMbps)
     } catch (err) {
