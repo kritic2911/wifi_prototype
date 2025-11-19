@@ -1,62 +1,72 @@
 import React, { useState, useEffect } from 'react'
 
-const INITIAL_APS = [
-  { id: 'AP-1', band: '2.4GHz', load: 45, neighbours: ['AP-2'] },
-  { id: 'AP-2', band: '5GHz', load: 20, neighbours: ['AP-1', 'AP-3'] },
-  { id: 'AP-3', band: '2.4GHz', load: 85, neighbours: ['AP-2'] },
-]
-
-const INITIAL_DEVICES = [
-  { user: 'alice@uni.com', ap: 'AP-1', supports5g: true, jitter: 12, pattern: 'stable', classification: '-', priority: 'normal' },
-  { user: 'bob@corp.com', ap: 'AP-3', supports5g: true, jitter: 42, pattern: 'stable', classification: '-', priority: 'normal' },
-  { user: 'carol@guest.com', ap: 'AP-3', supports5g: false, jitter: 18, pattern: 'large_download', classification: '-', priority: 'normal' },
-  { user: 'dave@public.com', ap: 'AP-2', supports5g: true, jitter: 8, pattern: 'burst', classification: '-', priority: 'normal' },
-]
-
-const INITIAL_HIGH_USAGE = [
-  { user: 'small@things.com', tier: 'University', cap: 4, peak: 6.2, devices: '4/5', breaches: 5, status: 'Review' },
-  { user: 'alister@crowley.com', tier: 'Guest', cap: 1.5, peak: 3.1, devices: '2/3', breaches: 11, status: 'High Risk' },
-  { user: 'tedhughes@ovenHeaven.com', tier: 'Public Paid', cap: 4, peak: 4.9, devices: '3/3', breaches: 3, status: 'Caution' },
-]
-
 export function AdminPage() {
   const [target, setTarget] = useState('All Free Users')
   const [hours, setHours] = useState(4)
   const [bandwidth, setBandwidth] = useState(2)
   const [toast, setToast] = useState('')
-  const [highUsage, setHighUsage] = useState(INITIAL_HIGH_USAGE)
+  const [highUsage, setHighUsage] = useState([])
   const [actionLog, setActionLog] = useState([])
-  const [aps, setAps] = useState(INITIAL_APS)
-  const [devices, setDevices] = useState(INITIAL_DEVICES)
+  const [aps, setAps] = useState([])
+  const [devices, setDevices] = useState([])
   const [simToast, setSimToast] = useState('')
+  const [heatmapImage, setHeatmapImage] = useState(null)
+  const [forecast, setForecast] = useState(null)
 
+  // Poll Network Status
   useEffect(() => {
-    const id = setInterval(() => {
-      setHighUsage(prev =>
-        prev.map(row => {
-          const jitter = (Math.random() * 1.4 - 0.7)
-          const peak = Math.max(row.cap + 0.1, +(row.peak + jitter).toFixed(1))
-          return { ...row, peak }
-        }),
-      )
-      pushLog('High Usage Monitor refreshed')
-    }, 120000)
-    return () => clearInterval(id)
+    const fetchStatus = async () => {
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000'
+        const res = await fetch(`${API_URL}/api/network-status`)
+        const data = await res.json()
+        setAps(data.aps)
+        setDevices(data.devices)
+
+        // Derive High Usage from devices
+        const highRisk = data.devices
+          .filter(d => d.is_anomaly || d.classification === 'DENY' || d.classification === 'THROTTLE')
+          .map(d => ({
+            user: d.user,
+            tier: d.priority === 'High' ? 'Faculty' : 'Student',
+            cap: 10, // Mock
+            peak: d.jitter, // Using jitter as proxy for peak load for now
+            devices: '1/1',
+            breaches: d.is_anomaly ? 1 : 0,
+            status: d.is_anomaly ? 'High Risk' : 'Review'
+          }))
+        setHighUsage(highRisk)
+
+      } catch (e) {
+        console.error("Failed to fetch network status", e)
+      }
+    }
+
+    fetchStatus()
+    const interval = setInterval(fetchStatus, 2000)
+    return () => clearInterval(interval)
   }, [])
 
+  // Poll Heatmap & Forecast
   useEffect(() => {
-    const liveInterval = setInterval(() => {
-      setAps(prev => prev.map(a => ({
-        ...a,
-        load: Math.max(0, Math.min(100, a.load + Math.floor((Math.random() - 0.4) * 10)))
-      })))
-      setDevices(prev => prev.map(d => ({
-        ...d,
-        jitter: Math.max(1, d.jitter + Math.floor((Math.random() - 0.5) * 8))
-      })))
-      pushLog('Tick: metrics randomized')
-    }, 10000)
-    return () => clearInterval(liveInterval)
+    const fetchAnalytics = async () => {
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000'
+        const heatRes = await fetch(`${API_URL}/api/heatmap`)
+        const heatData = await heatRes.json()
+        setHeatmapImage(heatData.image)
+
+        const forecastRes = await fetch(`${API_URL}/api/forecast`)
+        const forecastData = await forecastRes.json()
+        setForecast(forecastData)
+      } catch (e) {
+        console.error("Failed to fetch analytics", e)
+      }
+    }
+
+    fetchAnalytics()
+    const interval = setInterval(fetchAnalytics, 5000) // Poll less frequently
+    return () => clearInterval(interval)
   }, [])
 
   function pushLog(msg) {
@@ -71,56 +81,11 @@ export function AdminPage() {
   }
 
   function resetSim() {
-    setAps(INITIAL_APS)
-    setDevices(INITIAL_DEVICES)
+    // In a real app this might reset the backend state
     setActionLog([])
-    setSimToast('Simulator reset')
+    setSimToast('Simulation reset')
     setTimeout(() => setSimToast(''), 1600)
   }
-
-  // function generateReport() {
-  //   const lines = []
-  //   lines.push('=== Users exceeding bandwidth (simulated) ===')
-  //   lines.push('user,tier,cap_mbps,peak_mbps,devices,breaches,status')
-    
-  //   const exceeding = devices.filter(d => {
-  //     const ap = aps.find(a => a.id === d.ap)
-  //     return d.pattern === 'large_download' || d.jitter > 50 || (ap && ap.load > 80)
-  //   })
-    
-  //   if (exceeding.length === 0) {
-  //     lines.push('none')
-  //   } else {
-  //     exceeding.forEach(u => {
-  //       lines.push(`"${u.user}",${u.ap},${u.supports5g ? 'yes' : 'no'},${u.jitter},${u.pattern},no`)
-  //     })
-  //   }
-
-  //   lines.push('')
-  //   lines.push('=== Top 100 Access Log (newest first) ===')
-  //   lines.push('timestamp | message')
-  //   if (actionLog.length === 0) {
-  //     lines.push('no log entries')
-  //   } else {
-  //     actionLog.slice(0, 100).forEach(entry => {
-  //       lines.push(`"[${entry.time}] ${entry.msg}"`)
-  //     })
-  //   }
-
-  //   const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' })
-  //   const url = URL.createObjectURL(blob)
-  //   const a = document.createElement('a')
-  //   const ts = new Date().toISOString().replace(/[:.]/g, '-')
-  //   a.href = url
-  //   a.download = `wifi-admin-report-${ts}.txt`
-  //   document.body.appendChild(a)
-  //   a.click()
-  //   a.remove()
-  //   setTimeout(() => URL.revokeObjectURL(url), 2000)
-  //   pushLog(`Report generated (${exceeding.length} users flagged)`)
-  //   setSimToast('Report generated and downloaded')
-  //   setTimeout(() => setSimToast(''), 2200)
-  // }
 
   function generateReport() {
     const lines = [];
@@ -129,11 +94,11 @@ export function AdminPage() {
     // 1. NETWORK OVERVIEW
     const totalAps = aps.length;
     const totalDevices = devices.length;
-    const avgLoad = aps.reduce((a, b) => a + b.load, 0) / aps.length;
+    const avgLoad = aps.length ? aps.reduce((a, b) => a + b.load, 0) / aps.length : 0;
     const congestedAps = aps.filter(a => a.load > 80);
 
-    const mostOverloaded = aps.reduce((max, ap) =>
-      ap.load > max.load ? ap : max, aps[0]);
+    const mostOverloaded = aps.length ? aps.reduce((max, ap) =>
+      ap.load > max.load ? ap : max, aps[0]) : null;
 
     lines.push("=== NETWORK HEALTH OVERVIEW ===");
     lines.push(`Generated: ${timestamp}`);
@@ -142,24 +107,18 @@ export function AdminPage() {
     lines.push(`Total Connected Devices: ${totalDevices}`);
     lines.push(`Average AP Load: ${avgLoad.toFixed(1)}%`);
     lines.push(
-      `Congested APs (${congestedAps.length}): ${
-        congestedAps.length ? congestedAps.map(a => a.id).join(", ") : "None"
+      `Congested APs (${congestedAps.length}): ${congestedAps.length ? congestedAps.map(a => a.id).join(", ") : "None"
       }`
     );
-    lines.push(
-      `Most Overloaded AP: ${mostOverloaded.id} (${mostOverloaded.load}%)`
-    );
+    if (mostOverloaded) {
+      lines.push(
+        `Most Overloaded AP: ${mostOverloaded.id} (${mostOverloaded.load}%)`
+      );
+    }
     lines.push("");
 
     // 2. HIGH-RISK USERS TABLE
-    const flagged = devices.filter(d => {
-      const ap = aps.find(a => a.id === d.ap);
-      return (
-        d.jitter > 45 ||
-        d.pattern === "large_download" ||
-        (ap && ap.load > 80)
-      );
-    });
+    const flagged = devices.filter(d => d.is_anomaly || d.classification === 'DENY');
 
     lines.push("=== HIGH-RISK USERS (CSV) ===");
     lines.push("user,ap,jitter,pattern,suspected_activity,reason");
@@ -175,13 +134,14 @@ export function AdminPage() {
         if (d.jitter > 45) reasonParts.push("High jitter");
         if (d.pattern === "large_download") reasonParts.push("Large downloads");
         if (ap && ap.load > 80) reasonParts.push(`AP congestion (${ap.load}%)`);
+        if (d.is_anomaly) reasonParts.push("AI Anomaly Detected");
 
         const suspected =
           d.pattern === "large_download"
             ? "File Transfer / Streaming"
             : d.jitter > 45
-            ? "Unstable Link / Load Spike"
-            : "Normal";
+              ? "Unstable Link / Load Spike"
+              : "Normal";
 
         lines.push(
           `${d.user},${d.ap},${d.jitter},${d.pattern},${suspected},"${reasonParts.join(
@@ -197,8 +157,8 @@ export function AdminPage() {
     aps.forEach(ap => {
       const state =
         ap.load > 80 ? "Critical"
-        : ap.load > 60 ? "High"
-        : "Normal";
+          : ap.load > 60 ? "High"
+            : "Normal";
 
       lines.push(`${ap.id}`);
       lines.push(`  Band: ${ap.band}`);
@@ -220,15 +180,15 @@ export function AdminPage() {
 
       const bottleneck =
         d.jitter > 40 ? "Device link quality" :
-        (ap && ap.load > 80) ? "AP congestion" :
-        "None";
+          (ap && ap.load > 80) ? "AP congestion" :
+            "None";
 
       const behavior =
         d.pattern === "large_download"
           ? "Heavy download behaviour"
           : d.pattern === "burst"
-          ? "Short bursts / interactive"
-          : "Stable";
+            ? "Short bursts / interactive"
+            : "Stable";
 
       lines.push(`${d.user}`);
       lines.push(`  AP: ${d.ap}`);
@@ -349,21 +309,25 @@ export function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {highUsage.map(row => (
-                  <tr key={row.user}>
-                    <td>{row.user}</td>
-                    <td>{row.tier}</td>
-                    <td>{row.cap} Mbps</td>
-                    <td>{row.peak.toFixed(1)} Mbps</td>
-                    <td>{row.devices}</td>
-                    <td>{row.breaches}</td>
-                    <td>
-                      <span className={`tag ${row.status === 'High Risk' ? 'tag--danger' : row.status === 'Review' ? 'tag--warn' : ''}`}>
-                        {row.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {highUsage.length === 0 ? (
+                  <tr><td colSpan="7" style={{ textAlign: 'center' }}>No high usage alerts</td></tr>
+                ) : (
+                  highUsage.map(row => (
+                    <tr key={row.user}>
+                      <td>{row.user}</td>
+                      <td>{row.tier}</td>
+                      <td>{row.cap} Mbps</td>
+                      <td>{row.peak.toFixed(1)} Mbps</td>
+                      <td>{row.devices}</td>
+                      <td>{row.breaches}</td>
+                      <td>
+                        <span className={`tag ${row.status === 'High Risk' ? 'tag--danger' : row.status === 'Review' ? 'tag--warn' : ''}`}>
+                          {row.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -372,6 +336,44 @@ export function AdminPage() {
 
       <section className="section">
         <div className="container">
+          <h2>Network Intelligence</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '2rem' }}>
+            {/* Heatmap Card */}
+            <div className="card">
+              <h3>Spatial Analytics (Heatmap)</h3>
+              {heatmapImage ? (
+                <img src={heatmapImage} alt="Network Heatmap" style={{ width: '100%', borderRadius: '4px' }} />
+              ) : (
+                <div style={{ padding: '2rem', textAlign: 'center', background: '#f5f5f5' }}>Loading Heatmap...</div>
+              )}
+            </div>
+
+            {/* Forecast Card */}
+            <div className="card">
+              <h3>Traffic Forecast (ARIMA)</h3>
+              {forecast ? (
+                <div>
+                  <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#2e7d32' }}>
+                    {forecast.predicted_load.toFixed(1)} Users
+                  </div>
+                  <p>Predicted load for next interval</p>
+                  <div style={{ marginTop: '1rem', height: '100px', display: 'flex', alignItems: 'flex-end', gap: '2px' }}>
+                    {forecast.history.slice(-20).map((val, idx) => (
+                      <div key={idx} style={{
+                        width: '100%',
+                        height: `${(val / Math.max(...forecast.history)) * 100}%`,
+                        background: '#1976d2',
+                        opacity: 0.6
+                      }}></div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ padding: '2rem', textAlign: 'center', background: '#f5f5f5' }}>Loading Forecast...</div>
+              )}
+            </div>
+          </div>
+
           <h2>Traffic Management</h2>
           <p className="section__lead">
             Privacy-safe traffic classification and AP management rules (uses flow metadata only).
@@ -427,7 +429,11 @@ export function AdminPage() {
                       <td>{d.supports5g ? 'Yes' : 'No'}</td>
                       <td>{d.jitter}</td>
                       <td>{d.pattern}</td>
-                      <td>{d.classification}</td>
+                      <td>
+                        <span className={d.is_anomaly ? 'tag tag--danger' : ''}>
+                          {d.classification}
+                        </span>
+                      </td>
                       <td>{d.priority}</td>
                     </tr>
                   ))}
@@ -437,9 +443,9 @@ export function AdminPage() {
 
             <div style={{ marginTop: '1rem', display: 'flex', gap: '.5rem', alignItems: 'center' }}>
               <button onClick={resetSim} className="btn">Reset</button>
-              <button 
-                onClick={generateReport} 
-                className="btn" 
+              <button
+                onClick={generateReport}
+                className="btn"
                 style={{ background: '#2e7d32', color: '#fff', marginLeft: '6px' }}
               >
                 Generate Report
@@ -452,14 +458,14 @@ export function AdminPage() {
             </div>
 
             <h4 style={{ marginTop: '1rem' }}>Action Log</h4>
-            <div 
-              style={{ 
-                height: '160px', 
-                overflow: 'auto', 
-                background: '#fff', 
-                padding: '8px', 
-                borderRadius: '6px', 
-                border: '1px solid #eee', 
+            <div
+              style={{
+                height: '160px',
+                overflow: 'auto',
+                background: '#fff',
+                padding: '8px',
+                borderRadius: '6px',
+                border: '1px solid #eee',
                 color: '#111',
                 fontFamily: "'Courier New', monospace"
               }}

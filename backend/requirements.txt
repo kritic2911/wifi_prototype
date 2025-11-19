@@ -1,0 +1,8 @@
+flask
+flask-cors
+scikit-learn
+numpy
+statsmodels
+seaborn
+matplotlib
+gunicorn
