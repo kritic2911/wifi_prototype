@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { HomePage, PAGES } from './pages/HomePage.jsx'
 import { AdminPage } from './pages/AdminPage.jsx'
 import { SessionDemoPage } from './pages/SessionDemoPage.jsx'
@@ -6,6 +6,19 @@ import { PaymentPage } from './pages/PaymentPage.jsx'
 
 function App() {
   const [page, setPage] = useState(PAGES.HOME)
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('theme')
+    return saved || 'light'
+  })
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('theme', theme)
+  }, [theme])
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light')
+  }
 
   return (
     <div>
@@ -31,6 +44,9 @@ function App() {
             <a href="#public" onClick={(e) => { e.preventDefault(); setPage(PAGES.PUBLIC); }} className={page === PAGES.PUBLIC ? 'btn btn--sm' : ''}>
               Public
             </a>
+            <button onClick={toggleTheme} className="theme-toggle" title="Toggle theme">
+              {theme === 'light' ? '🌙' : '☀️'}
+            </button>
           </nav>
         </div>
       </header>

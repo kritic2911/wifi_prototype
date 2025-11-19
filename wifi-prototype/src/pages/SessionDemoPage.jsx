@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { startSpeedMonitoring } from '../utils/speedTest'
 
 function formatDuration(totalSeconds) {
   if (totalSeconds < 0) totalSeconds = 0
@@ -32,10 +33,12 @@ export function SessionDemoPage({ mode }) {
   const [deviceName, setDeviceName] = useState('')
   const [deviceMac, setDeviceMac] = useState('')
   const [deviceType, setDeviceType] = useState('phone')
+  const [useRealSpeed, setUseRealSpeed] = useState(false)
 
   const timerRef = useRef(null)
   const usageCanvasRef = useRef(null)
   const usageSeriesRef = useRef([])
+  const dynamicMaxRef = useRef(null)
 
   function getModeConfig() {
     if (isUni) {
@@ -47,7 +50,6 @@ export function SessionDemoPage({ mode }) {
     return { hours: 4, bandwidth: '1.5 Mbps', maxMbps: 1.5 }
   }
 
-  // Initialize canvas
   useEffect(() => {
     const canvas = usageCanvasRef.current
     if (!canvas) return
@@ -60,20 +62,30 @@ export function SessionDemoPage({ mode }) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   }, [])
 
-  // Usage updates
   useEffect(() => {
     const cfg = getModeConfig()
     const maxMbps = cfg.maxMbps || 4
-    const id = setInterval(() => {
-      const spike = Math.random() < 0.15 ? 1.3 : 1.0
-      const val = Math.min(maxMbps * 1.3, (Math.random() * 0.8 + 0.1) * maxMbps * spike)
-      setUsage(Number(val.toFixed(1)))
-      usageSeriesRef.current.push(val)
-      if (usageSeriesRef.current.length > 60) usageSeriesRef.current.shift()
-      drawUsageSeries(maxMbps)
-    }, 800)
-    return () => clearInterval(id)
-  }, [isUni, role, loggedInEmail, tier])
+    
+    if (useRealSpeed) {
+      const cleanup = startSpeedMonitoring((speed) => {
+        setUsage(Number(speed.toFixed(1)))
+        usageSeriesRef.current.push(speed)
+        if (usageSeriesRef.current.length > 60) usageSeriesRef.current.shift()
+        drawUsageSeries(maxMbps)
+      }, 2000)
+      return cleanup
+    } else {
+      const id = setInterval(() => {
+        const spike = Math.random() < 0.15 ? 1.3 : 1.0
+        const val = Math.min(maxMbps * 1.3, (Math.random() * 0.8 + 0.1) * maxMbps * spike)
+        setUsage(Number(val.toFixed(1)))
+        usageSeriesRef.current.push(val)
+        if (usageSeriesRef.current.length > 60) usageSeriesRef.current.shift()
+        drawUsageSeries(maxMbps)
+      }, 800)
+      return () => clearInterval(id)
+    }
+  }, [isUni, role, loggedInEmail, tier, useRealSpeed])
 
   function drawUsageSeries(maxMbps) {
     const canvas = usageCanvasRef.current
@@ -89,7 +101,19 @@ export function SessionDemoPage({ mode }) {
     const chartW = width - padLeft - padRight
     const chartH = height - padTopBottom * 2
 
-    // Draw grid and y-axis labels
+    let displayMax = maxMbps
+    if (useRealSpeed && usageSeriesRef.current.length > 0) {
+      const currentMax = Math.max(...usageSeriesRef.current)
+      const targetMax = currentMax * 1.2
+      if (!dynamicMaxRef.current) {
+        dynamicMaxRef.current = Math.max(maxMbps, targetMax)
+      } else {
+        dynamicMaxRef.current = dynamicMaxRef.current * 0.9 + targetMax * 0.1
+      }
+      displayMax = Math.max(maxMbps, dynamicMaxRef.current)
+    } else {
+      dynamicMaxRef.current = null
+    }
     const ratios = [0, 0.25, 0.5, 0.75, 1.0, 1.3]
     ctx.strokeStyle = '#273159'
     ctx.fillStyle = '#b9bfd3'
@@ -102,20 +126,35 @@ export function SessionDemoPage({ mode }) {
       ctx.moveTo(padLeft, y)
       ctx.lineTo(width, y)
       ctx.stroke()
-      const label = `${(maxMbps * r).toFixed(1)} Mbps`
+      const label = `${(displayMax * r).toFixed(1)} Mbps`
       ctx.fillText(label, 4, y + 4)
     })
-
-    // Draw red limit line at 100%
-    const limitY = padTopBottom + (1 - (1.0 / 1.3)) * chartH + 0.5
-    ctx.strokeStyle = '#ff5252'
-    ctx.lineWidth = 2
-    ctx.beginPath()
-    ctx.moveTo(padLeft, limitY)
-    ctx.lineTo(width, limitY)
-    ctx.stroke()
-
-    // Draw usage series
+    if (displayMax > maxMbps) {
+      const limitRatio = (maxMbps / displayMax) / 1.3
+      const limitY = padTopBottom + (1 - limitRatio) * chartH + 0.5
+      ctx.strokeStyle = '#ff5252'
+      ctx.lineWidth = 2
+      ctx.setLineDash([5, 5])
+      ctx.beginPath()
+      ctx.moveTo(padLeft, limitY)
+      ctx.lineTo(width, limitY)
+      ctx.stroke()
+      ctx.setLineDash([])
+      
+      // Label for limit line
+      ctx.fillStyle = '#ff5252'
+      ctx.fillText(`${maxMbps.toFixed(1)} Mbps (limit)`, padLeft + 5, limitY - 5)
+      ctx.fillStyle = '#b9bfd3'
+    } else {
+      // Draw red limit line at 100% when display max equals config max
+      const limitY = padTopBottom + (1 - (1.0 / 1.3)) * chartH + 0.5
+      ctx.strokeStyle = '#ff5252'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.moveTo(padLeft, limitY)
+      ctx.lineTo(width, limitY)
+      ctx.stroke()
+    }
     if (usageSeriesRef.current.length === 0) return
     const step = chartW / Math.max(1, usageSeriesRef.current.length - 1)
     ctx.strokeStyle = '#6c7cff'
@@ -123,7 +162,7 @@ export function SessionDemoPage({ mode }) {
     ctx.beginPath()
     usageSeriesRef.current.forEach((v, i) => {
       const x = padLeft + i * step
-      const ratio = Math.min(1.3, v / maxMbps) / 1.3
+      const ratio = Math.min(1.3, v / displayMax) / 1.3
       const y = padTopBottom + (1 - ratio) * chartH
       if (i === 0) ctx.moveTo(x, y)
       else ctx.lineTo(x, y)
@@ -330,6 +369,22 @@ export function SessionDemoPage({ mode }) {
               </div>
               <div className="demo__graph">
                 <canvas ref={usageCanvasRef} style={{ width: '100%', height: '180px' }}></canvas>
+              </div>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '12px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={useRealSpeed} 
+                    onChange={(e) => setUseRealSpeed(e.target.checked)}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <span>Use Real Network Speed</span>
+                </label>
+                {useRealSpeed && (
+                  <span style={{ color: 'var(--accent)', fontSize: '0.9em', fontWeight: '500' }}>
+                    ⚡ Live Testing
+                  </span>
+                )}
               </div>
               <label>
                 Simulation Speed

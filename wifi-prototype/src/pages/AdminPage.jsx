@@ -44,7 +44,6 @@ export function AdminPage() {
     return () => clearInterval(id)
   }, [])
 
-  // Live update for simulator
   useEffect(() => {
     const liveInterval = setInterval(() => {
       setAps(prev => prev.map(a => ({
