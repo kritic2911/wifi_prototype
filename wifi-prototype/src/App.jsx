@@ -54,8 +54,8 @@ function App() {
       <main className="container" style={{ paddingTop: '20px', paddingBottom: '20px' }}>
         {page === PAGES.HOME && <HomePage goTo={setPage} />}
         {page === PAGES.ADMIN && <AdminPage />}
-        {page === PAGES.PUBLIC && <SessionDemoPage mode="public" />}
-        {page === PAGES.UNI && <SessionDemoPage mode="uni" />}
+        {page === PAGES.PUBLIC && <SessionDemoPage mode="public" goTo={setPage} />}
+        {page === PAGES.UNI && <SessionDemoPage mode="uni" goTo={setPage} />}
         {page === PAGES.PAYMENT && <PaymentPage />}
       </main>
 

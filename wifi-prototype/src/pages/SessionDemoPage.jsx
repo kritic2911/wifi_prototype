@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { startSpeedMonitoring } from '../utils/speedTest'
+import { PAGES } from './HomePage'
 
 function formatDuration(totalSeconds) {
   if (totalSeconds < 0) totalSeconds = 0
@@ -11,7 +12,7 @@ function formatDuration(totalSeconds) {
   return `${s}s`
 }
 
-export function SessionDemoPage({ mode }) {
+export function SessionDemoPage({ mode, goTo }) {
   const isPublic = mode === 'public'
   const isUni = mode === 'uni'
 
@@ -249,8 +250,9 @@ export function SessionDemoPage({ mode }) {
 
   function handleChooseTier(selectedTier) {
     if (selectedTier === 'public-paid') {
-      // In the original, this redirects to payment page
-      alert('This would redirect to payment page')
+      if (goTo) {
+        goTo(PAGES.PAYMENT)
+      }
     } else {
       setTier(selectedTier)
     }

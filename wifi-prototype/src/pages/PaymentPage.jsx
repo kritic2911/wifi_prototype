@@ -15,7 +15,6 @@ export function PaymentPage() {
     showMsg('Processing payment for upgrade...')
     setTimeout(() => {
       showMsg('Payment successful — returning...')
-      // In the original, this would redirect back to public.html with paid=1
     }, 900)
   }
 
